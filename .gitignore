@@ -1,0 +1,10 @@
+node_modules
+.next
+out
+build
+*.tsbuildinfo
+.env*.local
+.DS_Store
+.image-backups
+.data
+.claude/settings.local.json
