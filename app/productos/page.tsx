@@ -1,5 +1,6 @@
 "use client";
 
+import { Suspense } from "react";
 import { useSearchParams } from "next/navigation";
 import { motion } from "framer-motion";
 import { HeaderNav } from "@/components/layout/HeaderNav";
@@ -12,6 +13,14 @@ const CATEGORY_COPY: Record<string, { eyebrow: string; title: string }> = {
 };
 
 export default function ProductosPage() {
+  return (
+    <Suspense fallback={null}>
+      <ProductosPageContent />
+    </Suspense>
+  );
+}
+
+function ProductosPageContent() {
   const searchParams = useSearchParams();
   const category = searchParams.get("category");
 

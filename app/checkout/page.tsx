@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState, type DetailedHTMLProps, type HTMLAttributes } from "react";
+import { Suspense, useEffect, useRef, useState, type DetailedHTMLProps, type HTMLAttributes } from "react";
 import Link from "next/link";
 import Script from "next/script";
 import { useRouter, useSearchParams } from "next/navigation";
@@ -66,6 +66,14 @@ function yappyErrorMessage(detail: unknown): string {
 }
 
 export default function CheckoutPage() {
+  return (
+    <Suspense fallback={null}>
+      <CheckoutPageContent />
+    </Suspense>
+  );
+}
+
+function CheckoutPageContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { profile } = useAuth();
