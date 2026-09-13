@@ -13,6 +13,7 @@
     "normalize-images": "node scripts/normalize-image-colors.mjs"
   },
   "dependencies": {
+    "@neondatabase/serverless": "^1.1.0",
     "framer-motion": "^11.11.17",
     "jspdf": "^4.2.1",
     "lucide-react": "^0.462.0",
