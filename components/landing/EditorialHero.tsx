@@ -16,18 +16,18 @@ interface HeroTile {
 
 const TILES: HeroTile[] = [
   {
-    title: "EQUIS PERFORMANCE",
-    subtitle: "Ropa y equipamiento individual",
-    cta: "COMPRAR INDIVIDUAL",
-    href: "/productos?category=ropa",
-    comingSoon: true,
-  },
-  {
     title: "EQUIPAMIENTO EQUIS",
     subtitle: "Balones Oficiales de Partido",
     cta: "VER EQUIPAMIENTO",
     href: "/productos?category=elite",
     image: "/balon-tamano-5.png",
+  },
+  {
+    title: "EQUIS PERFORMANCE",
+    subtitle: "Ropa y equipamiento individual",
+    cta: "COMPRAR INDIVIDUAL",
+    href: "/productos?category=ropa",
+    comingSoon: true,
   },
 ];
 
