@@ -15,9 +15,9 @@ interface QuotePdfRequestItem {
 }
 
 interface QuotePdfRequestBody {
-  companyName: string;
-  ruc: string;
-  dv: string;
+  companyName?: string;
+  ruc?: string;
+  dv?: string;
   contactName: string;
   email: string;
   phone: string;
@@ -51,16 +51,21 @@ async function sendQuoteLeadEmail(params: {
   const { body, quoteNumber, total, pdfBuffer } = params;
   const resend = new Resend(apiKey);
 
+  const whoFor = body.companyName ? body.companyName : body.contactName;
+  const companyLine = body.companyName
+    ? `<strong>Razón Social:</strong> ${body.companyName}<br/>`
+    : "";
+  const rucLine = body.ruc && body.dv ? `<strong>RUC / DV:</strong> ${body.ruc} / ${body.dv}<br/>` : "";
+
   await resend.emails.send({
     from: process.env.RESEND_FROM_EMAIL || "onboarding@resend.dev",
     to: ISSUER.email,
     replyTo: body.email,
-    subject: `Nueva Cotización Generada — ${body.companyName} (${quoteNumber})`,
+    subject: `Nueva Cotización Generada — ${whoFor} (${quoteNumber})`,
     html: `
       <div style="font-family: sans-serif; font-size: 14px; color: #111;">
         <p>Un cliente acaba de generar una cotización en el sitio web.</p>
-        <p><strong>Razón Social:</strong> ${body.companyName}<br/>
-        <strong>RUC / DV:</strong> ${body.ruc} / ${body.dv}<br/>
+        <p>${companyLine}${rucLine}
         <strong>Persona de Contacto:</strong> ${body.contactName}<br/>
         <strong>Correo:</strong> ${body.email}<br/>
         <strong>Teléfono:</strong> ${body.phone}</p>
@@ -87,12 +92,9 @@ function isValidBody(body: unknown): body is QuotePdfRequestBody {
   if (!body || typeof body !== "object") return false;
   const b = body as Record<string, unknown>;
   return (
-    typeof b.companyName === "string" &&
-    b.companyName.trim().length > 0 &&
-    typeof b.ruc === "string" &&
-    b.ruc.trim().length > 0 &&
-    typeof b.dv === "string" &&
-    b.dv.trim().length > 0 &&
+    (b.companyName === undefined || typeof b.companyName === "string") &&
+    (b.ruc === undefined || typeof b.ruc === "string") &&
+    (b.dv === undefined || typeof b.dv === "string") &&
     typeof b.contactName === "string" &&
     b.contactName.trim().length > 0 &&
     typeof b.email === "string" &&
@@ -182,8 +184,8 @@ export async function POST(request: Request) {
   doc.setFont("helvetica", "normal");
   doc.setFontSize(10);
   const buyerLines = [
-    `Razón Social: ${body.companyName}`,
-    `RUC / DV: ${body.ruc} / ${body.dv}`,
+    ...(body.companyName ? [`Razón Social: ${body.companyName}`] : []),
+    ...(body.ruc && body.dv ? [`RUC / DV: ${body.ruc} / ${body.dv}`] : []),
     `Persona de Contacto: ${body.contactName}`,
     `Correo: ${body.email}`,
     `Teléfono: ${body.phone}`,

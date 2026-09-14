@@ -100,6 +100,7 @@ function CheckoutPageContent() {
   const [yappyReference, setYappyReference] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [isGeneratingPdf, setIsGeneratingPdf] = useState(false);
+  const [isSendingQuote, setIsSendingQuote] = useState(false);
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
   // Generated once, client-side only (getNextOrderNumber reads
   // window.localStorage, so it can't run during SSR) — so the same orderId
@@ -323,6 +324,40 @@ function CheckoutPageContent() {
     }
   }
 
+  async function handleSendQuote() {
+    setError(null);
+    if (!validateContact()) return;
+
+    setIsSendingQuote(true);
+    try {
+      const response = await fetch("/api/quote/pdf", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          contactName: name.trim(),
+          email: email.trim(),
+          phone: phone.trim(),
+          items: items.map((item) => ({
+            sku: item.sku,
+            name: item.name,
+            unitPrice: item.unitPrice,
+            quantity: item.quantity,
+          })),
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error("No se pudo enviar la cotización.");
+      }
+
+      setStatusMessage("Tu cotización fue enviada. Te contactaremos pronto.");
+    } catch {
+      setError("No se pudo enviar la cotización. Intenta de nuevo.");
+    } finally {
+      setIsSendingQuote(false);
+    }
+  }
+
   if (items.length === 0) {
     return (
       <div className="min-h-screen bg-black text-white">
@@ -460,40 +495,63 @@ function CheckoutPageContent() {
               <h2 className="mb-4 font-mono text-xs uppercase tracking-wider text-zinc-500">
                 Método de Pago
               </h2>
-              <div className="border border-white p-4">
-                <div className="flex items-center gap-3">
-                  <QrCode className="h-4 w-4" />
-                  <span className="font-mono text-sm font-bold uppercase tracking-wider">
-                    YAPPY (BANCO GENERAL)
-                  </span>
-                </div>
-                <div className="mt-4 flex flex-col gap-4 border-t border-zinc-800 pt-4">
+              <div className="relative border border-white p-4">
+                <div className="pointer-events-none select-none blur-sm">
                   <div className="flex items-center gap-3">
-                    <span className="border border-zinc-700 bg-zinc-900 px-3 py-1.5 font-mono text-xs font-bold tracking-wider text-white">
-                      YAPPY
-                    </span>
-                    <span className="font-mono text-[11px] uppercase tracking-wider text-zinc-500">
-                      Banco General
+                    <QrCode className="h-4 w-4" />
+                    <span className="font-mono text-sm font-bold uppercase tracking-wider">
+                      YAPPY (BANCO GENERAL)
                     </span>
                   </div>
-                  {isYappyOnline ? (
-                    <>
-                      <p className="text-sm text-zinc-300">
-                        Completa tus datos de contacto y pulsa el botón de Yappy para pagar.
-                      </p>
-                      <btn-yappy ref={yappyButtonRef} theme="dark"></btn-yappy>
-                    </>
-                  ) : (
-                    <>
-                      {/* btn-yappy stays mounted (hidden) so it can keep dispatching isYappyOnline and recover on its own. */}
-                      <p className="border border-amber-900 bg-amber-950/40 px-4 py-3 text-xs text-amber-300">
-                        Yappy no está disponible en este momento. Intenta más tarde.
-                      </p>
-                      <btn-yappy ref={yappyButtonRef} theme="dark" className="hidden"></btn-yappy>
-                    </>
-                  )}
+                  <div className="mt-4 flex flex-col gap-4 border-t border-zinc-800 pt-4">
+                    <div className="flex items-center gap-3">
+                      <span className="border border-zinc-700 bg-zinc-900 px-3 py-1.5 font-mono text-xs font-bold tracking-wider text-white">
+                        YAPPY
+                      </span>
+                      <span className="font-mono text-[11px] uppercase tracking-wider text-zinc-500">
+                        Banco General
+                      </span>
+                    </div>
+                    {isYappyOnline ? (
+                      <>
+                        <p className="text-sm text-zinc-300">
+                          Completa tus datos de contacto y pulsa el botón de Yappy para pagar.
+                        </p>
+                        <btn-yappy ref={yappyButtonRef} theme="dark"></btn-yappy>
+                      </>
+                    ) : (
+                      <>
+                        {/* btn-yappy stays mounted (hidden) so it can keep dispatching isYappyOnline and recover on its own. */}
+                        <p className="border border-amber-900 bg-amber-950/40 px-4 py-3 text-xs text-amber-300">
+                          Yappy no está disponible en este momento. Intenta más tarde.
+                        </p>
+                        <btn-yappy ref={yappyButtonRef} theme="dark" className="hidden"></btn-yappy>
+                      </>
+                    )}
+                  </div>
+                </div>
+
+                <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 bg-black/70 p-4 text-center">
+                  <p className="font-mono text-sm font-bold uppercase tracking-wider text-white">
+                    Botón Yappy — Coming Soon...
+                  </p>
+                  <p className="text-xs text-zinc-300">
+                    Por favor contáctanos para realizar compras.
+                  </p>
                 </div>
               </div>
+
+              {!isBusiness && (
+                <button
+                  type="button"
+                  onClick={handleSendQuote}
+                  disabled={isSendingQuote}
+                  className="mt-3 flex w-full items-center justify-center gap-2 bg-white px-6 py-4 font-mono text-sm uppercase tracking-wider text-black transition-colors hover:bg-zinc-200 disabled:opacity-50"
+                >
+                  <FileDown className="h-4 w-4" />
+                  {isSendingQuote ? "Enviando..." : "Enviar Cotización"}
+                </button>
+              )}
             </section>
 
             {error && (
