@@ -45,8 +45,8 @@ const YAPPY_ERROR_MESSAGES: Record<string, string> = {
   E005: "Número de Yappy no registrado.",
   E007: "Este pedido ya fue procesado.",
   E009: "El identificador del pedido no es válido.",
-  E010: "No se pudo completar el pago con Yappy. Intenta de nuevo.",
-  E011: "La sesión de pago expiró. Intenta de nuevo.",
+  E010: "El valor de los montos no es correcto.",
+  E011: "Error en los campos de URL. Intenta de nuevo.",
 };
 
 function extractYappyErrorCode(detail: unknown): string | null {
