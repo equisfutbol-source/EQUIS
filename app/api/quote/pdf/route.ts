@@ -1,6 +1,11 @@
+import { readFile } from "node:fs/promises";
+import path from "node:path";
 import { NextResponse } from "next/server";
+import { Resend } from "resend";
 import { ISSUER, getQuoteValidUntil, QUOTE_VALIDITY_DAYS } from "@/lib/company";
 import { computeQuoteTotals, discountRateForQuantity, ITBMS_RATE, type QuoteLineItem } from "@/types/quote";
+
+export const runtime = "nodejs";
 
 interface QuotePdfRequestItem {
   sku: string;
@@ -24,6 +29,54 @@ const currency = (value: number) =>
 
 const formatDate = (date: Date) =>
   date.toLocaleDateString("es-PA", { year: "numeric", month: "long", day: "numeric" });
+
+/**
+ * Notifies EQUIS internally whenever a customer generates a quote, so they
+ * can follow up directly — includes the customer's contact details and the
+ * generated PDF as an attachment. Best-effort: failures here must not break
+ * the customer's own PDF download.
+ */
+async function sendQuoteLeadEmail(params: {
+  body: QuotePdfRequestBody;
+  quoteNumber: string;
+  total: number;
+  pdfBuffer: Buffer;
+}): Promise<void> {
+  const apiKey = process.env.RESEND_API_KEY;
+  if (!apiKey) {
+    console.warn("[api/quote/pdf] RESEND_API_KEY not set — skipping lead notification email.");
+    return;
+  }
+
+  const { body, quoteNumber, total, pdfBuffer } = params;
+  const resend = new Resend(apiKey);
+
+  await resend.emails.send({
+    from: process.env.RESEND_FROM_EMAIL || "onboarding@resend.dev",
+    to: ISSUER.email,
+    replyTo: body.email,
+    subject: `Nueva Cotización Generada — ${body.companyName} (${quoteNumber})`,
+    html: `
+      <div style="font-family: sans-serif; font-size: 14px; color: #111;">
+        <p>Un cliente acaba de generar una cotización en el sitio web.</p>
+        <p><strong>Razón Social:</strong> ${body.companyName}<br/>
+        <strong>RUC / DV:</strong> ${body.ruc} / ${body.dv}<br/>
+        <strong>Persona de Contacto:</strong> ${body.contactName}<br/>
+        <strong>Correo:</strong> ${body.email}<br/>
+        <strong>Teléfono:</strong> ${body.phone}</p>
+        <p><strong>Cotización:</strong> ${quoteNumber}<br/>
+        <strong>Total:</strong> $${total.toFixed(2)}</p>
+        <p>El PDF de la cotización está adjunto a este correo.</p>
+      </div>
+    `,
+    attachments: [
+      {
+        filename: `${quoteNumber}.pdf`,
+        content: pdfBuffer,
+      },
+    ],
+  });
+}
 
 function generateServerQuoteNumber(): string {
   const year = new Date().getFullYear();
@@ -79,20 +132,28 @@ export async function POST(request: Request) {
   const issueDate = new Date();
   const validUntil = getQuoteValidUntil(issueDate);
 
+  // The source PNG is a white mark on a transparent background (same asset
+  // the site uses on dark surfaces), so it needs a dark badge behind it to
+  // be visible on the PDF's white page.
+  const logoBuffer = await readFile(path.join(process.cwd(), "public", "logo.png"));
+  const logoBase64 = `data:image/png;base64,${logoBuffer.toString("base64")}`;
+
   const doc = new jsPDF({ unit: "pt", format: "letter" });
   const marginX = 48;
   const rightX = 564;
   let y = 56;
 
-  doc.setFont("helvetica", "bold");
-  doc.setFontSize(16);
-  doc.text("EQUIS", marginX, y);
+  const logoSize = 34;
+  const logoY = 30;
+  doc.setFillColor(17, 17, 17);
+  doc.roundedRect(marginX, logoY, logoSize, logoSize, 4, 4, "F");
+  doc.addImage(logoBase64, "PNG", marginX + 6, logoY + 6, logoSize - 12, logoSize - 12);
 
   doc.setFont("helvetica", "normal");
   doc.setFontSize(9);
   doc.setTextColor(90);
   const issuerLines = [ISSUER.companyName, `RUC: ${ISSUER.ruc}  DV: ${ISSUER.dv}`, ISSUER.email, ISSUER.phone];
-  let issuerY = y + 16;
+  let issuerY = logoY + logoSize + 14;
   for (const line of issuerLines) {
     doc.text(line, marginX, issuerY);
     issuerY += 12;
@@ -193,6 +254,13 @@ export async function POST(request: Request) {
   doc.text(`${quoteNumber} — Generado el ${formatDate(issueDate)} — ${ISSUER.companyName}`, marginX, 750);
 
   const pdfArrayBuffer = doc.output("arraybuffer") as ArrayBuffer;
+  const pdfBuffer = Buffer.from(pdfArrayBuffer);
+
+  try {
+    await sendQuoteLeadEmail({ body, quoteNumber, total, pdfBuffer });
+  } catch (error) {
+    console.error("[api/quote/pdf] failed to send lead notification email:", error);
+  }
 
   return new NextResponse(pdfArrayBuffer, {
     status: 200,
